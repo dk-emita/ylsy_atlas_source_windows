@@ -142,7 +142,7 @@ def check_for_windows_update() -> bool:
     from PySide6.QtGui import QIcon
     from PySide6.QtWidgets import QApplication
     app = QApplication.instance() or QApplication(sys.argv[:1])
-    icon_path = ROOT / 'assets' / 'atlas-icon.ico'
+    icon_path = ROOT / 'assets' / 'icon.png'
     icon = QIcon(str(icon_path))
     asset = release.get('asset')
     if not asset:

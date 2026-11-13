@@ -25,8 +25,8 @@ Source: "{#SourceExe}"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ig
 Source: "scripts\register_background_sync.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "scripts\unregister_background_sync.ps1"; DestDir: "{app}\scripts"; Flags: ignoreversion
 [Icons]
-Name: "{autoprograms}\YLSY Atlas"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\YLSY Atlas"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\YLSY Atlas"; Filename: "{app}\{#MyAppExeName}"; AppUserModelID: "YLSY.Atlas.Desktop.236"
+Name: "{autodesktop}\YLSY Atlas"; Filename: "{app}\{#MyAppExeName}"; AppUserModelID: "YLSY.Atlas.Desktop.236"; Tasks: desktopicon
 [Tasks]
 Name: "desktopicon"; Description: "Masaüstü kısayolu oluştur"; GroupDescription: "Ek seçenekler"
 [Run]

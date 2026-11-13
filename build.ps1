@@ -32,20 +32,27 @@ if ($launcher) {
 & $Py @PyPrefix -m pip install -r (Join-Path $PSScriptRoot 'requirements.txt')
 if ($LASTEXITCODE -ne 0) { throw 'Bagimliliklar yuklenemedi.' }
 
-# PyInstaller uses Qt hooks to bundle Qt WebEngine and its helper process.
-& $Py @PyPrefix -m PyInstaller --noconfirm --clean --noupx --onefile --windowed `
-    --name 'ylsy-atlas' `
-    --specpath $SpecDir `
+# The spec keeps an unrelated ICU DLL out of both the Qt parent and renderer.
+& $Py @PyPrefix -m PyInstaller --noconfirm --clean `
     --workpath $PyInstallerWorkDir `
     --distpath $DistDir `
-    --icon $IconPath `
-    --version-file $VersionFile `
-    --add-data "$PSScriptRoot\web;web" `
-    --add-data "$PSScriptRoot\assets;assets" `
-    --add-data "$PSScriptRoot\resources;resources" `
-    --collect-submodules 'keyring.backends' `
-    run.py
+    (Join-Path $PSScriptRoot 'scripts\windows.spec')
 if ($LASTEXITCODE -ne 0 -or !(Test-Path $ExePath)) { throw 'Windows EXE derlemesi basarisiz.' }
+
+# Verify the frozen Qt window itself: an embedded EXE icon alone cannot detect
+# a Qt DLL failure followed by the browser fallback and its tiny favicon.
+$nativeReport = Join-Path $ReportDir 'native-window-check.json'
+$nativeProcess = Start-Process -FilePath $ExePath -ArgumentList @('--check-native-window', ('"' + $nativeReport + '"')) -WindowStyle Normal -PassThru
+if (-not $nativeProcess.WaitForExit(60000)) {
+    & taskkill.exe /PID $nativeProcess.Id /T /F | Out-Null
+    throw 'Derlenen EXE kendi Windows penceresini zamaninda acamadi.'
+}
+if (!(Test-Path -LiteralPath $nativeReport)) { throw 'Windows pencere dogrulamasi rapor uretmedi.' }
+$nativeCheck = Get-Content -LiteralPath $nativeReport -Raw | ConvertFrom-Json
+if (-not $nativeCheck.ok -or -not $nativeCheck.ui_loaded -or $nativeCheck.backend -ne 'Qt' -or $nativeCheck.icon_null) {
+    throw ('Windows pencere dogrulamasi basarisiz: ' + $nativeCheck.error)
+}
+Write-Host ('Windows pencere motoru dogrulandi: Qt ' + $nativeCheck.qt) -ForegroundColor Green
 
 # Inspect the real embedded EXE resource instead of trusting Explorer's cached thumbnail.
 Add-Type -AssemblyName System.Drawing
