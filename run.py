@@ -113,7 +113,7 @@ def legacy_browser_window(url):
         while True:time.sleep(.2)
 
 
-def native_window(url, check_report=None):
+def native_window(url, check_report=None, cloud=None):
     """Run the app as a genuine Windows/Qt window with an explicit taskbar icon."""
     from PySide6.QtCore import QUrl, Qt, QStandardPaths, QTimer, qVersion
     from PySide6.QtGui import QIcon, QDesktopServices
@@ -243,6 +243,19 @@ def native_window(url, check_report=None):
     window.show()
     # Refresh icon once Windows has created the native HWND.
     window.setWindowIcon(app_icon)
+    if cloud is not None:
+        def return_from_google():
+            if not cloud.login_completed.is_set():
+                return
+            cloud.login_completed.clear()
+            window.showNormal()
+            window.raise_()
+            window.activateWindow()
+            if sys.platform == 'win32':
+                ctypes.windll.user32.SetForegroundWindow(int(window.winId()))
+        login_return_timer = QTimer(window)
+        login_return_timer.timeout.connect(return_from_google)
+        login_return_timer.start(250)
     if check_report is not None:
         QTimer.singleShot(30000, lambda: complete_check(False, error='Application UI did not become ready in 30 seconds.'))
     return app.exec()
@@ -314,7 +327,7 @@ def main():
             legacy_browser_window(server.atlas_url)
         else:
             try:
-                native_window(server.atlas_url)
+                native_window(server.atlas_url, cloud=server.atlas_cloud)
             except Exception as exc:
                 import traceback
                 from storage import data_dir

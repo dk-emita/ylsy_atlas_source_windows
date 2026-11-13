@@ -1,26 +1,48 @@
-# YLSY Atlas v4.0.0 — Windows kaynak kodu
+# YLSY Atlas Desktop 4.0.0
 
-Windows/masaüstü uygulamasının kaynak kodudur. Kurulum dosyaları [YLSY Atlas sürüm deposunda](https://github.com/dk-emita/ylsy_atlas) yayımlanır.
+Windows desktop edition of YLSY Atlas. The desktop interface uses the shared
+Atlas workspace and keeps the current local records, guide, document studio,
+language tools, calendar, and Google Drive backup features.
 
-## Google Drive geliştirme ayarı
+## Build
 
-Kişisel OAuth istemci kimliği ve sırrı bu depodan çıkarılmıştır. `resources/google_oauth_client.json.example` dosyasını `resources/google_oauth_client.json` adıyla kopyalayıp `YOUR_...` alanlarını kendi Google Cloud OAuth istemcinizle değiştirin. Gerçek kimlik bilgilerini Git'e göndermeyin.
+Run `build_installer.ps1` in PowerShell on Windows with Python and Inno Setup 6
+installed. The release output is `dist/YLSY-Atlas-v4.0.0-Setup.exe`; intermediate
+application binaries and build files are cleaned after packaging.
 
-Windows 4.0.0 sürümü GitHub Releases üzerinden Windows Setup güncellemesini kontrol eder. Daha yeni bir sürüm bulunursa Güncelle veya Çıkış seçeneği gösterilir; kurulum dosyası indirilip doğrulandıktan sonra çalıştırılır.
+`build.ps1 -Stage` creates an intermediate EXE for diagnosis. Every build runs
+the frozen application's real interface against an isolated temporary workspace
+and checks the dashboard, navigation, CSS, JavaScript and local API before the
+installer is produced. The check does not use the user's data or Drive account.
 
-## Windows derlemesi
+## Google Drive
 
-Windows üzerinde Python ve Inno Setup 6 kurulu olmalıdır. PowerShell'de proje klasöründen `./build_installer.ps1` çalıştırın. Çıktı yalnızca `dist/YLSY-Atlas-v4.0.0-Setup.exe` dosyasıdır; ara EXE ve derleme dosyaları paketlemenin sonunda temizlenir.
+Windows workspace data is stored under `%LOCALAPPDATA%\YLSY Atlas`. Existing
+`%LOCALAPPDATA%\YLSYAtlas2` data is moved automatically on first launch when
+the destination is empty. If both folders contain data, neither is overwritten.
 
-Ara EXE'yi incelemek için `./build.ps1 -Stage` kullanılabilir. Onaylanan paket Python 3.15.0, PySide6 6.12.0 ve PyInstaller 6.22.3 ile derlendi.
+Windows user data is stored in `%LOCALAPPDATA%\YLSY Atlas`. If an existing
+`%LOCALAPPDATA%\YLSYAtlas2` workspace is found, it is moved to the new name on
+first launch when the destination is empty. If both locations contain data,
+neither is deleted or overwritten.
 
-Derleme, gerçek uygulama arayüzünü ayrı ve boş bir geçici çalışma alanında açar. Kontrol paneli, JavaScript, CSS, yerel API ve menüler yüklenmeden doğrulama başarılı sayılmaz. Bu kontrol kişisel çalışma verilerini veya bağlı Google Drive hesabını kullanmaz.
+The bundled configuration uses the existing Google Cloud Desktop OAuth client
+and its matching installed-app metadata. Authentication uses the system browser
+with PKCE. User refresh credentials are stored in the Windows credential vault.
 
-## 13 Kasım 2026 masaüstü düzeltmesi
+## Local data
 
-- Qt penceresinin ve sayfa motorunun açılmasını engelleyen uyumsuz ICU DLL dosyaları paketten çıkarıldı. Qt ve onun alt süreci Windows'un ICU uygulamasını kullanır.
-- Pencere ve görev çubuğu simgesi onaylı `assets/icon.png` kaynağını kullanır. EXE ve kurulum ICO boyutları aynı görselden üretilir.
-- Çalışan uygulama ile kurulum kısayollarının Windows görev çubuğu kimlikleri eşleştirildi.
-- `scripts/windows.spec` paketleme kurallarını, `scripts/qt_system_runtime.py` gerekli Windows kütüphanesinin yüklenmesini yönetir.
+User records are stored in the Windows application data folder. The packaged
+application includes the YLSY US graduate application guide and approved Atlas
+desktop icon.
 
-OAuth işlevleri ve yapılandırma alanları kaynak kodda korunur. Bu depoda gerçek yayıncı OAuth kimliği, client secret, kullanıcı oturum bilgisi veya kullanıcı çalışma verisi bulunmaz. Geliştiriciler kendi OAuth yapılandırmalarını oluşturmalıdır.
+## Windows startup and icon fixes — 13 November 2026
+
+The package excludes incompatible third-party ICU DLLs so Qt and its renderer
+use the Windows ICU implementation. The Windows window and taskbar use the
+approved `assets/icon.png`; shell icons are generated from the same source.
+Installer shortcuts carry the same AppUserModelID as the running application.
+
+Public source is maintained in the sibling `ylsy_atlas_source_windows` folder.
+Its OAuth configuration is an example with placeholders; this private working
+folder's real OAuth file must never be copied into the public source repository.

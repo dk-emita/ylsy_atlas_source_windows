@@ -42,7 +42,8 @@
   async function folders(){
     view='folders';
     const where=folderStack.at(-1);
-    panel('Google Drive klasörü seç',`<p>${escapeHTML(folderStack.map(x=>x.name).join(' / '))}</p><div class="cloud-folder-list" id="cloud-folder-list">Klasörler alınıyor…</div><button data-cloud="back" class="cloud-button quiet" ${folderStack.length===1?'disabled':''}>Üst klasöre dön</button><button data-cloud="choose" class="cloud-button primary" disabled>Burada “YLSY Atlas” klasörü oluştur veya kullan</button>`);
+    const chooseLabel=where.name==='YLSY Atlas'?'Bu YLSY Atlas klasörünü kullan':'Burada “YLSY Atlas” klasörü oluştur veya kullan';
+    panel('Google Drive klasörü seç',`<p>${escapeHTML(folderStack.map(x=>x.name).join(' / '))}</p><div class="cloud-folder-list" id="cloud-folder-list">Klasörler alınıyor…</div><button data-cloud="back" class="cloud-button quiet" ${folderStack.length===1?'disabled':''}>Üst klasöre dön</button><button data-cloud="choose" class="cloud-button primary" disabled>${chooseLabel}</button>`);
     try{
       let items=await http('folders?parent='+encodeURIComponent(where.id));
       if(view!=='folders'||folderStack.at(-1).id!==where.id)return;
@@ -90,7 +91,7 @@
         home(ROOT.getAttribute('data-startup')==='true');
         message('Google bağlantısı tamamlanamadı: '+info.error,true);
       }
-      if(info.status.includes('alındı') && old && newest.change_number!==old.change_number && !document.getElementById('doc-editor')){
+      if((info.status.includes('alındı') || info.status.includes('indirildi')) && old && newest.change_number!==old.change_number && !document.getElementById('doc-editor')){
         // Reload only once per status revision, so a newly downloaded remote snapshot is rendered.
         const key=`atlas-cloud-refreshed-${newest.change_number}`;
         if(!sessionStorage.getItem(key)){sessionStorage.setItem(key,'1');location.reload();}
@@ -115,7 +116,7 @@
       }
       if(action==='folders'){folderPrompted=true;folderStack=[{name:'Drive ana klasörü',id:'root'}];await folders();}
       if(action==='retry-folders'){await folders();}
-      if(action==='disconnect'){if(!confirm('Google Drive bağlantısı ayrılsın mı? Kaydedilmemiş yerel veriler silinmez.'))return;info=await http('disconnect','POST');home();}
+      if(action==='disconnect'){if(!confirm('Google Drive bağlantısı ayrılsın mı? Senkronizasyonu doğrulanan kayıtlar cihazdan kaldırılır. Yedeklenemeyen kayıtlar korunur.'))return;info=await http('disconnect','POST');home();location.reload();}
       if(action==='back') {if(folderStack.length>1)folderStack.pop();await folders();}
       if(action==='enter') {folderStack.push({id:button.dataset.id,name:button.dataset.label});await folders();}
       if(action==='choose') {info=await http('select-folder','POST',{parent:folderStack.at(-1).id});info=await http('skip','POST');awaitingLogin=false;folderPrompted=true;home();message('Yedekleme konumu kaydedildi. Otomatik Drive yedeklemesi açık.')}

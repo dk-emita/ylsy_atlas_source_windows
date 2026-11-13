@@ -28,8 +28,27 @@ def data_dir():
     if os.environ.get('ATLAS_DATA_DIR'):
         return Path(os.environ['ATLAS_DATA_DIR'])
     if os.name == 'nt':
-        return Path(os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local')) / 'YLSYAtlas2'
-    return Path.home() / '.local' / 'share' / 'YLSYAtlas2'
+        base = Path(os.environ.get('LOCALAPPDATA', Path.home() / 'AppData' / 'Local'))
+    else:
+        base = Path.home() / '.local' / 'share'
+    current = base / 'YLSY Atlas'
+    legacy = base / 'YLSYAtlas2'
+
+    # New installations get a readable folder name. Preserve existing users'
+    # data by renaming the legacy location only when the destination is free.
+    if legacy.is_dir() and current.is_dir() and not any(current.iterdir()):
+        try:
+            current.rmdir()
+        except OSError:
+            pass
+    if legacy.is_dir() and not current.exists():
+        try:
+            legacy.rename(current)
+        except OSError:
+            # If migration is blocked (for example by a running older process),
+            # continue using the existing workspace rather than opening empty data.
+            return legacy
+    return current
 
 
 SCHEMAS = {
@@ -188,21 +207,35 @@ class Store:
         if table=='vocabulary' and item_id is None and (not payload.get('word','').strip() or not payload.get('meaning','').strip()):
             raise ValueError('Kelime ve anlam alanları gerekli')
         if not payload:raise ValueError('Düzenlenecek alan bulunamadı')
-        with self.lock, self.connect() as c:
-            payload['updated_at']=now()
-            if item_id is None:
-                if table in ('programs','advisors') and 'university_id' not in payload:raise ValueError('Üniversite seçilmeli')
-                if table=='tasks' and 'title' not in payload: raise ValueError('Görev adı gerekli')
-                if table=='documents' and 'title' not in payload: raise ValueError('Belge başlığı gerekli')
-                if table=='vocabulary': payload['created_at']=now()
-                cols=list(payload); marks=','.join('?' for _ in cols)
-                cur=c.execute(f'INSERT INTO {table} ({",".join(cols)}) VALUES({marks})',tuple(payload.values()))
-                item_id=cur.lastrowid
-            else:
-                item_id=int(item_id)
-                if not c.execute(f'SELECT 1 FROM {table} WHERE id=?',(item_id,)).fetchone():raise KeyError('Kayıt bulunamadı')
-                cols=list(payload)
-                c.execute(f'UPDATE {table} SET {",".join(f"{k}=?" for k in cols)} WHERE id=?',(*payload.values(),item_id))
+        try:
+            with self.lock, self.connect() as c:
+                if table=='universities':
+                    for field, label in (('short','kısa ad'),('name','üniversite adı')):
+                        value=payload.get(field)
+                        if value:
+                            match=c.execute(f'SELECT id,name,short FROM universities WHERE {field}=?',(value,)).fetchone()
+                            if match and (item_id is None or int(match['id'])!=int(item_id)):
+                                raise ValueError(f'Bu {label} zaten kayıtlı: {match["name"]} ({match["short"]}). Var olan üniversiteyi açıp düzenleyin.')
+                payload['updated_at']=now()
+                if item_id is None:
+                    if table in ('programs','advisors') and 'university_id' not in payload:raise ValueError('Üniversite seçilmeli')
+                    if table=='tasks' and 'title' not in payload: raise ValueError('Görev adı gerekli')
+                    if table=='documents' and 'title' not in payload: raise ValueError('Belge başlığı gerekli')
+                    if table=='vocabulary': payload['created_at']=now()
+                    cols=list(payload); marks=','.join('?' for _ in cols)
+                    cur=c.execute(f'INSERT INTO {table} ({",".join(cols)}) VALUES({marks})',tuple(payload.values()))
+                    item_id=cur.lastrowid
+                else:
+                    item_id=int(item_id)
+                    if not c.execute(f'SELECT 1 FROM {table} WHERE id=?',(item_id,)).fetchone():raise KeyError('Kayıt bulunamadı')
+                    cols=list(payload)
+                    c.execute(f'UPDATE {table} SET {",".join(f"{k}=?" for k in cols)} WHERE id=?',(*payload.values(),item_id))
+        except sqlite3.IntegrityError as exc:
+            if table=='universities' and 'short' in str(exc).lower():
+                raise ValueError('Bu üniversite kısa adı zaten kayıtlı. Var olan üniversiteyi açın veya farklı bir kısa ad girin.') from exc
+            if table=='universities' and 'name' in str(exc).lower():
+                raise ValueError('Bu üniversite zaten kayıtlı. Üniversite listesinden mevcut kaydı açın.') from exc
+            raise
         self._changed()
         return self.one(table,item_id)
 

@@ -7,19 +7,43 @@ Google Drive for Desktop folder: only API mode can prove server confirmation.
 """
 from __future__ import annotations
 import hashlib
+import io
 import json
 import os
 import shutil
 from pathlib import Path
 import secrets
 import sqlite3
+import tempfile
 import threading
 import time
+import zipfile
+from contextlib import closing
 from datetime import datetime, timezone
 
 from ylsy_atlas_drive.google_drive import GoogleAuth, GoogleDrive, make_service
 
 APP_KEY = 'atlas-workspace.zip'
+
+
+def _workspace_digest(contents):
+    """Compare the actual records and attachments, ignoring ZIP timestamps."""
+    from storage import SCHEMAS
+    digest = hashlib.sha256()
+    with zipfile.ZipFile(io.BytesIO(contents)) as archive, tempfile.TemporaryDirectory() as directory:
+        database = Path(directory) / 'atlas.sqlite3'
+        database.write_bytes(archive.read('atlas.sqlite3'))
+        with closing(sqlite3.connect(database)) as connection:
+            for table in sorted(SCHEMAS):
+                digest.update(table.encode('utf-8'))
+                order = 'key' if table == 'settings' else 'id'
+                for row in connection.execute(f'SELECT * FROM "{table}" ORDER BY "{order}"'):
+                    digest.update(json.dumps(tuple(row), ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
+                    digest.update(b'\0')
+        for name in sorted(n for n in archive.namelist() if n.startswith('uploads/') and not n.endswith('/')):
+            digest.update(name.encode('utf-8'))
+            digest.update(hashlib.sha256(archive.read(name)).digest())
+    return digest.digest()
 
 
 def _write_json_atomic(path, obj):
@@ -29,10 +53,11 @@ def _write_json_atomic(path, obj):
 
 
 class CloudController:
-    def __init__(self, store, resources: Path, start_worker: bool = True, secret_store=None):
+    def __init__(self, store, resources: Path, start_worker: bool = True, secret_store=None, oauth_return_uri=None):
         self.store = store
         self.resources = Path(resources)
         self.secret_store = secret_store
+        self.oauth_return_uri = oauth_return_uri
         self.conf_path = store.root / 'cloud-connection.json'
         self.queue_path = store.root / 'offline_sync_queue.sqlite3'
         self._queue_init()
@@ -56,14 +81,17 @@ class CloudController:
         self.last_local = ''
         self.thread = None
         self.login_thread = None
+        self.login_completed = threading.Event()
         self.change_number = 0
         self.initialized = False
         self.conflict_blocked = bool(self.config.get('conflict_blocked'))
+        self.conflict_retry_after = 0.0
         self.edit_lease_until = 0.0
         self.drive_folder_root = None
         self.store.on_change = self.mark_dirty
         if self.connected:
-            self.status_text = 'Bağlantı denetleniyor'
+            self.status_text = ('Drive ve cihaz kayıtları farklı; güvenli çözüm aranıyor' if self.conflict_blocked
+                                else 'Bağlantı denetleniyor')
             if start_worker:
                 self._start_worker()
 
@@ -107,7 +135,7 @@ class CloudController:
     def _queue_init(self):
         """Durable FIFO journal; the SQLite workspace itself is the local buffer."""
         self.queue_path.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.queue_path, timeout=20) as db:
+        with closing(sqlite3.connect(self.queue_path, timeout=20)) as db, db:
             db.execute('PRAGMA journal_mode=WAL')
             db.execute('PRAGMA synchronous=FULL')
             db.execute('''CREATE TABLE IF NOT EXISTS offline_sync_queue (
@@ -119,28 +147,28 @@ class CloudController:
             db.execute('CREATE INDEX IF NOT EXISTS idx_offline_queue_state_id ON offline_sync_queue(state,id)')
 
     def _queue_add(self, revision):
-        with sqlite3.connect(self.queue_path, timeout=20) as db:
+        with closing(sqlite3.connect(self.queue_path, timeout=20)) as db, db:
             db.execute('PRAGMA synchronous=FULL')
             db.execute('INSERT INTO offline_sync_queue(revision,created_at,state) VALUES(?,?,\'pending\')',
                        (revision, datetime.now(timezone.utc).isoformat(timespec='seconds')))
 
     def _queue_count(self):
         try:
-            with sqlite3.connect(self.queue_path, timeout=5) as db:
+            with closing(sqlite3.connect(self.queue_path, timeout=5)) as db, db:
                 return db.execute("SELECT COUNT(*) FROM offline_sync_queue WHERE state='pending'").fetchone()[0]
         except sqlite3.Error:
             return 0
 
     def _queue_max_revision(self):
         try:
-            with sqlite3.connect(self.queue_path, timeout=5) as db:
+            with closing(sqlite3.connect(self.queue_path, timeout=5)) as db, db:
                 return int(db.execute('SELECT COALESCE(MAX(revision),0) FROM offline_sync_queue').fetchone()[0])
         except sqlite3.Error:
             return 0
 
     def _queue_ack(self, revision):
         """Delete FIFO entries only after the corresponding cloud snapshot is confirmed."""
-        with sqlite3.connect(self.queue_path, timeout=20) as db:
+        with closing(sqlite3.connect(self.queue_path, timeout=20)) as db, db:
             db.execute("DELETE FROM offline_sync_queue WHERE state='pending' AND revision<=?", (revision,))
 
     def editor_active(self, is_active):
@@ -160,6 +188,8 @@ class CloudController:
     def _start_worker(self):
         if self.thread and self.thread.is_alive():
             return
+        self.stop_event.clear()
+        self.wakeup.clear()
         self.thread = threading.Thread(target=self._loop, name='YLSY-Drive-Sync', daemon=True)
         self.thread.start()
 
@@ -169,17 +199,23 @@ class CloudController:
         with self.lock:
             if self.login_thread and self.login_thread.is_alive():
                 return self.current()
+            self.login_completed.clear()
             self.status_text = 'Google giriş sayfası açılıyor'
             self.error = ''
             self.change_number += 1
         def login():
             try:
-                auth = GoogleAuth(self.resources / 'google_oauth_client.json', secret_store=self.secret_store)
+                auth = GoogleAuth(self.resources / 'google_oauth_client.json', secret_store=self.secret_store,
+                                  return_uri=self.oauth_return_uri)
                 creds = auth.authorize(interactive=True, force_account_choice=True)
                 with self.lock:
                     self.auth, self.credentials = auth, creds
                     # A newly selected Google account must explicitly choose
                     # its folder before any snapshot is uploaded.
+                    if self.mode == 'oauth' and self.config.get('folder_id'):
+                        self.config['last_oauth_folder_id'] = self.config['folder_id']
+                        if self.last_remote:
+                            self.config['last_oauth_remote_md5'] = self.last_remote
                     self.connected = False
                     self.mode = 'none'
                     self.config.update(mode='none')
@@ -189,6 +225,7 @@ class CloudController:
                     _write_json_atomic(self.conf_path, self.config)
                     self.status_text = 'Google hesabı doğrulandı; Drive klasörü seçiniz'
                     self.change_number += 1
+                    self.login_completed.set()
             except Exception as exc:
                 with self.lock:
                     self.status_text = 'Google hesabına bağlanılamadı'
@@ -202,7 +239,8 @@ class CloudController:
         if not self.configured():
             raise ValueError('Google OAuth bağlantısı bu uygulama paketinde etkin değil')
         if not self.auth:
-            self.auth = GoogleAuth(self.resources / 'google_oauth_client.json', secret_store=self.secret_store)
+            self.auth = GoogleAuth(self.resources / 'google_oauth_client.json', secret_store=self.secret_store,
+                                   return_uri=self.oauth_return_uri)
         creds = self.auth.authorize(interactive=False)
         with self.lock:
             self.credentials = creds
@@ -238,14 +276,20 @@ class CloudController:
         drive = self._drive()
         folder = drive.get_or_create_app_folder(parent_id)
         with self.lock:
-            self.config.update(mode='oauth', folder_id=folder, conflict_blocked=False)
-            self.conflict_blocked = False
+            same_folder = folder == (self.config.get('folder_id') or self.config.get('last_oauth_folder_id'))
+            remembered_md5 = (self.config.get('remote_md5') or self.config.get('last_oauth_remote_md5')) if same_folder else ''
+            remembered_conflict = self.conflict_blocked if same_folder else False
+            self.config.update(mode='oauth', folder_id=folder, conflict_blocked=remembered_conflict)
+            self.conflict_blocked = remembered_conflict
             self.config.pop('local_path', None)
             self.mode, self.connected = 'oauth', True
             self.initialized = False
-            self.last_remote = ''
-            self.config.pop('remote_md5', None)
-            self.dirty = self._has_records()
+            self.last_remote = remembered_md5
+            if remembered_md5:
+                self.config['remote_md5'] = remembered_md5
+            else:
+                self.config.pop('remote_md5', None)
+            self.dirty = self.dirty or (self._has_records() and not same_folder)
             self.config['dirty'] = self.dirty
             self.status_text = 'Drive klasörü ayarlandı; ilk senkronizasyon başlıyor'
             self.change_number += 1
@@ -287,8 +331,36 @@ class CloudController:
         return self.current()
 
     def disconnect(self):
-        # Local edits remain safe and usable; disconnect never deletes them.
+        # Stop the worker, make one last best-effort upload, then discard only a
+        # workspace whose exact cloud snapshot Google has confirmed. Pending
+        # local work remains untouched when offline or when verification fails.
+        self.stop_event.set()
+        self.wakeup.set()
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=8)
+        if self.thread and self.thread.is_alive():
+            self.stop_event.clear()
+            raise ValueError('Drive işlemi sürüyor. Tamamlandıktan sonra bağlantıyı yeniden kaldırın.')
+        if self.connected:
+            try:
+                if self.conflict_blocked:
+                    self._resolve_identical_conflict()
+                else:
+                    self.sync_once()
+            except Exception:
+                pass
+            if self.conflict_blocked:
+                self.stop_event.clear()
+                self._start_worker()
+                raise ValueError('Drive ve cihaz kayıtları farklı. Kayıtları korumak için bağlantı açık tutuldu; çakışma çözülmeden çıkış yapılamaz.')
+            purged = self.purge_verified_local_data()
+        else:
+            purged = False
         with self.lock:
+            if self.mode == 'oauth' and self.config.get('folder_id'):
+                self.config['last_oauth_folder_id'] = self.config['folder_id']
+                if self.last_remote:
+                    self.config['last_oauth_remote_md5'] = self.last_remote
             self.mode = 'none'
             self.connected = False
             self.config.pop('folder_id', None)
@@ -297,11 +369,18 @@ class CloudController:
             self.config['conflict_blocked'] = False
             self.conflict_blocked = False
             self.initialized = False
-            self.status_text = 'Hesap ayrıldı; yerel kayıt etkin'
+            self.status_text = ('Hesap ayrıldı; yedeklenen kayıtlar cihazdan kaldırıldı' if purged else
+                                'Hesap ayrıldı; henüz yedeklenmeyen kayıtlar cihazda korunuyor')
             self.change_number += 1
             _write_json_atomic(self.conf_path, self.config)
         if self.auth:
-            self.auth.disconnect()
+            try:
+                self.auth.disconnect()
+            finally:
+                self.auth = None
+                self.credentials = None
+        else:
+            self.credentials = None
         self.wakeup.set()
         return self.current()
 
@@ -360,16 +439,61 @@ class CloudController:
             self.conflict_blocked = True
             self.config['conflict_blocked'] = True
             self.config['dirty'] = True
-            self.error = key
+            self.config['conflict_copy'] = key
+            self.error = 'Drive ve cihaz kayıtları farklı. Yerel verileriniz güvenli bir kopyada korundu.'
             self.change_number += 1
             _write_json_atomic(self.conf_path, self.config)
         return key
 
+    def _resolve_identical_conflict(self):
+        """Recover an interrupted sign-in when both workspaces contain the same data."""
+        if self.mode != 'oauth' or not self.connected:
+            return False
+        with self.lock, self.store.lock:
+            generation = self.gener
+            local = self.store.backup()
+        remote, raw, drive = self._remote()
+        if not remote or _workspace_digest(local) != _workspace_digest(self._download(remote, raw, drive)):
+            with self.lock:
+                if self.status_text != 'Drive ve cihaz kayıtları farklı; yerel veriler korunuyor':
+                    self.status_text = 'Drive ve cihaz kayıtları farklı; yerel veriler korunuyor'
+                    self.error = 'Çakışma çözülmedi. Kayıtlar karşılaştırılmadan cihazdan silinmeyecek.'
+                    self.change_number += 1
+            return False
+        with self.lock, self.store.lock:
+            if generation != self.gener:
+                return False
+            current = drive.doc_info(remote['id'])
+            if not current or current.get('md5Checksum') != remote['md5Checksum']:
+                return False
+            self.last_remote = remote['md5Checksum']
+            self.config['remote_md5'] = self.last_remote
+            self.config['dirty'] = False
+            self.config['conflict_blocked'] = False
+            self.config['local_purged'] = False
+            self.dirty = False
+            self.conflict_blocked = False
+            self.initialized = True
+            self.synced = True
+            self.error = ''
+            self.status_text = 'Drive ve cihaz kayıtları doğrulandı; eşitleme devam ediyor'
+            self.change_number += 1
+            _write_json_atomic(self.conf_path, self.config)
+            self._queue_ack(generation)
+        return True
+
     def sync_once(self):
         with self.lock:
-            if not self.connected or self.conflict_blocked:
+            if not self.connected:
                 return
+            recover_conflict = self.conflict_blocked
+            if recover_conflict:
+                if time.monotonic() < self.conflict_retry_after:
+                    return
+                self.conflict_retry_after = time.monotonic() + 30
             dirty, generation, was_initialized = self.dirty, self.gener, self.initialized
+        if recover_conflict:
+            return self._resolve_identical_conflict()
         remote, raw, drive = self._remote()
         remote_md5 = remote['md5Checksum'] if remote else ''
         if (self.mode == 'oauth' and self.config.get('local_purged') and
@@ -508,7 +632,9 @@ class CloudController:
                     self.status_text = 'Çevrimdışı: değişiklikler yerelde güvenle saklanıyor'
                     self.error = str(exc)[:240]
                     self.change_number += 1
-            self.wakeup.wait(4.0)
+            # Store mutations and browser `online` notifications wake this
+            # worker immediately; the short fallback closes missed-event gaps.
+            self.wakeup.wait(1.0)
             self.wakeup.clear()
 
     def close(self):
@@ -535,6 +661,10 @@ class CloudController:
             for suffix in ('-wal', '-shm', '-journal'):
                 Path(str(self.store.db_path) + suffix).unlink(missing_ok=True)
             shutil.rmtree(self.store.uploads)
+            self.store.uploads.mkdir(parents=True, exist_ok=True)
+            # The server can remain open after the user disconnects Drive.
+            # Recreate an empty schema so the UI continues in local mode.
+            self.store._setup()
             (self.store.root / 'before-restore.zip').unlink(missing_ok=True)
             self.config['local_purged'] = True
             _write_json_atomic(self.conf_path, self.config)

@@ -54,6 +54,8 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var DataFolder: String;
 begin
   if (CurUninstallStep = usPostUninstall) and RemoveUserData then begin
+    DataFolder := ExpandConstant('{localappdata}\YLSY Atlas');
+    DelTree(DataFolder, True, True, True);
     DataFolder := ExpandConstant('{localappdata}\YLSYAtlas2');
     DelTree(DataFolder, True, True, True);
   end;

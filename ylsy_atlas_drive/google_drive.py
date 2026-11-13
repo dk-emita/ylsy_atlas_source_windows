@@ -28,12 +28,13 @@ class GoogleAuth:
     Access/refresh tokens live in the OS credential vault via keyring, never in
     program files, a cloud snapshot, the bundled client JSON or the SQLite DB.
     """
-    def __init__(self, client_config_path: Path, secret_store=None):
+    def __init__(self, client_config_path: Path, secret_store=None, return_uri=None):
         self.client_config_path = Path(client_config_path)
         if secret_store is None:
             import keyring
             secret_store = keyring
         self.secret_store = secret_store
+        self.return_uri = return_uri if return_uri == 'ylsyatlas://oauth-complete' else None
         info = json.loads(self.client_config_path.read_text(encoding='utf-8')).get('installed', {})
         self.client_id = info.get('client_id', '')
         self.client_secret = str(info.get('client_secret') or '')
@@ -60,7 +61,7 @@ class GoogleAuth:
     def _browser_login(self):
         import base64
         from datetime import datetime, timedelta, timezone
-        from http.server import HTTPServer, BaseHTTPRequestHandler
+        from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
         from urllib.parse import urlparse, parse_qs
         import secrets
         import threading
@@ -73,20 +74,31 @@ class GoogleAuth:
         expected_state = secrets.token_urlsafe(32)
         client_id = self.client_id
         client_secret = self.client_secret
+        return_uri = self.return_uri
         captured = {}
         completed = threading.Event()
 
         def callback_page(success, message):
             title = 'Google hesabı bağlandı' if success else 'Google bağlantısı tamamlanamadı'
-            close_script = "<script>window.close();</script>" if success else ''
+            if success and return_uri:
+                close_script = ("<p><a href='ylsyatlas://oauth-complete'>YLSY Atlas uygulamasına dön</a></p>"
+                                "<script>setTimeout(function(){location.href='ylsyatlas://oauth-complete'},150)</script>")
+            else:
+                close_script = '<script>window.close()</script>' if success else ''
+            help_text = ('Uygulamaya otomatik dönülmezse bağlantıya dokunun.' if return_uri else
+                         'Bu sekme otomatik kapanmazsa YLSY Atlas penceresine dönün.')
             safe_message = (message or '').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
             return (f'<!doctype html><html lang="tr"><meta charset="utf-8"><title>{title}</title>'
                     '<body style="font:16px sans-serif;margin:3rem">'
                     f'<h1>{title}</h1><p>{safe_message}</p>'
-                    '<p>Bu sekme otomatik kapanmazsa kapatıp YLSY Atlas uygulamasına dönün.</p>'
+                    f'<p>{help_text}</p>'
                     f'{close_script}</body></html>').encode('utf-8')
 
         class Handler(BaseHTTPRequestHandler):
+            def setup(self):
+                self.request.settimeout(15)
+                super().setup()
+
             def log_message(self, *args):
                 pass   # OAuth callback path may contain sensitive information
 
@@ -166,7 +178,9 @@ class GoogleAuth:
 
         # Desktop client loopback redirects are supported by Google. Dynamic
         # port avoids collisions with another running program.
-        with HTTPServer(('127.0.0.1', 0), Handler) as server:
+        # Browsers can leave a speculative loopback connection open without
+        # sending a request. Keep it off the main callback/timeout loop.
+        with ThreadingHTTPServer(('127.0.0.1', 0), Handler) as server:
             server.timeout = 0.5
             # Google Desktop loopback redirect uses the port URL without a trailing slash.
             redirect_uri = f'http://127.0.0.1:{server.server_port}'
@@ -238,6 +252,14 @@ class GoogleDrive:
         return sorted(items, key=lambda f: f['name'].casefold())
 
     def get_or_create_app_folder(self, selected_parent: str):
+        if selected_parent != 'root':
+            selected = self.service.files().get(
+                fileId=selected_parent, fields='id,name,mimeType,trashed').execute()
+            if (selected.get('name') == APP_FOLDER_NAME and
+                    selected.get('mimeType') == 'application/vnd.google-apps.folder' and
+                    not selected.get('trashed')):
+                self.folder_id = selected_parent
+                return self.folder_id
         for item in self.folders_in(selected_parent):
             if item['name'] == APP_FOLDER_NAME:
                 self.folder_id = item['id']

@@ -2,33 +2,3 @@ __pycache__/
 *.py[cod]
 build/
 dist/
-
-# Private OAuth configuration
-resources/google_oauth_client.json
-resources/google_android_oauth_client.json
-**/google_oauth_client.json
-**/google_android_oauth_client.json
-client_secret_*.json
-**/client_secret*.json
-**/credentials*.json
-**/token*.json
-**/cloud-connection.json
-.env
-.env.*
-.venv/
-venv/
-*.sqlite
-*.sqlite3
-*.db
-*.jks
-*.keystore
-*.p12
-*.pfx
-*.pem
-
-
-# Local screenshots and runtime logs
-/*.png
-*.log
-*.token
-

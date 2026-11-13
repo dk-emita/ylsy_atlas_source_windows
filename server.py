@@ -116,9 +116,10 @@ def dictionary_lookup(word):
         except Exception: pass
     return {'meanings':translations,'examples':examples[:3],'source_found':True}
 
-def create_server(root=None,port=0,token=None,start_cloud_worker=True,secret_store=None):
+def create_server(root=None,port=0,token=None,start_cloud_worker=True,secret_store=None,oauth_return_uri=None):
     store=Store(root)
-    cloud=CloudController(store, ROOT / "resources", start_worker=start_cloud_worker, secret_store=secret_store)
+    cloud=CloudController(store, ROOT / "resources", start_worker=start_cloud_worker,
+                          secret_store=secret_store, oauth_return_uri=oauth_return_uri)
     token=token or secrets.token_urlsafe(36)
     class Handler(BaseHTTPRequestHandler):
         server_version='YLSYAtlasDesktop/4.0.0'
@@ -273,10 +274,26 @@ def create_server(root=None,port=0,token=None,start_cloud_worker=True,secret_sto
                 data=base64.b64decode(obj.get('content',''),validate=True)
                 return self._send(store.restore(data))
             if p=='/api/open-external':
-                site=self._body(max_length=1024).get('site')
+                request=self._body(max_length=4096)
+                site=request.get('site')
                 allow={'rebus':'https://rebus.meb.gov.tr/','nvi':'https://randevu.nvi.gov.tr/'}
-                if site not in allow:raise ValueError('İzin verilmeyen dış bağlantı')
-                url=allow[site]
+                if site in allow:
+                    url=allow[site]
+                elif site=='guide-pdf':
+                    if not guide_pdf_path(store):raise ValueError('MEB rehberi PDF dosyası bulunamadı')
+                    page=max(1,min(500,int(request.get('page') or 1)))
+                    url=f'http://127.0.0.1:{self.server.server_port}/pdf?token={quote(token)}#page={page}&view=FitH'
+                elif site=='attachment':
+                    item=store.one('attachments',int(request.get('id') or 0))
+                    if item['mime']!='application/pdf' and not item['mime'].startswith('image/'):
+                        raise ValueError('Bu dosya tarayıcıda açılamıyor')
+                    url=f'http://127.0.0.1:{self.server.server_port}/api/attachments/{item["id"]}/file?token={quote(token)}'
+                else:
+                    url=str(request.get('url') or '').strip()
+                    parsed=urlparse(url)
+                    if (len(url)>2048 or parsed.scheme not in ('http','https') or not parsed.hostname or
+                            parsed.username or parsed.password or parsed.hostname in ('localhost','127.0.0.1')):
+                        raise ValueError('Geçersiz dış bağlantı')
                 launch_normal_browser(url, 'default')
                 return self._send({'ok':True,'message':'Tarayıcı açıldı.'})
             if p=='/api/settings':return self._send(store.set_settings(self._body()))
