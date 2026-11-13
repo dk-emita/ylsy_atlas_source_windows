@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="theme-color" content="#070f1d"/>
+  <meta name="description" content="YLSY Atlas — YLSY bursiyerleri için başvuru ve hazırlık platformu"/>
+  <link rel="icon" type="image/png" sizes="512x512" href="/app-icon.png?v=401"/>
+  <link rel="stylesheet" href="/styles.css"/>
+  <link rel="stylesheet" href="/desktop.css?v=401"/>
+  <title>YLSY Atlas — YLSY Başvuru ve Hazırlık Platformu</title>
+</head>
+<body>
+  <svg class="icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+    <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h5a5 5 0 0 0 0-10H9a3 3 0 1 1 0-6h6"/></symbol>
+    <symbol id="i-school" viewBox="0 0 24 24"><path d="M2 9 12 4l10 5-10 5z"/><path d="M6 11v5c3 3 9 3 12 0v-5"/><path d="M22 9v6"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-2a6 6 0 0 1 12 0v2z"/><path d="M17 5a3 3 0 0 1 0 6m2 9v-2a5 5 0 0 0-3-4.6"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 2h8l5 5v15H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"/><path d="M14 2v6h5M8 13h8M8 17h7"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1ZM12 5v15"/></symbol>
+    <symbol id="i-language" viewBox="0 0 24 24"><path d="M4 5h12M10 3v2m5 0c-1 6-5 10-11 12m1-9c2 4 5 7 9 9m1 4 4-11 4 11m-6-3h5"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 2v6m8-6v6M3 10h18M8 14h3m-3 4h3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 13 5 5L20 6"/></symbol>
+    <symbol id="i-task" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 11 2 2 4-4M15 11h3M7 17h11"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9Zm-8 12h4"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
+    <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 4v16M4 12h16"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M5 5 19 19M19 5 5 19"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M13 4h7v7M20 4l-9 9"/><path d="M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24"><path d="m15 5 4 4M4 20l4-.5L20 7.5 16.5 4 4.5 16Z"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3m-9 0 1 14h10l1-14M10 11v6m4-6v6"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v13m-5-5 5 5 5-5M4 18v3h16v-3"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 17V4m-5 5 5-5 5 5M4 18v3h16v-3"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.2-1.6l2-1.6-2-3.4-2.4.9a8 8 0 0 0-2.8-1.6L13 2h-2l-.6 2.7a8 8 0 0 0-2.8 1.6l-2.4-.9-2 3.4 2 1.6a7 7 0 0 0 0 3.2l-2 1.6 2 3.4 2.4-.9a8 8 0 0 0 2.8 1.6L11 22h2l.6-2.7a8 8 0 0 0 2.8-1.6l2.4.9 2-3.4-2-1.6A7 7 0 0 0 19 12Z"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-briefcase" viewBox="0 0 24 24"><rect x="3" y="7" width="18" height="14" rx="2"/><path d="M9 7V4h6v3M3 13h18"/></symbol>
+    <symbol id="i-flag" viewBox="0 0 24 24"><path d="M5 22V3m0 1c5-2 9 3 15 0v11c-6 3-10-2-15 0"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="12" rx="2"/><path d="M7 10V7a5 5 0 0 1 10 0v3"/><circle cx="12" cy="16" r="1"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18h10a4 4 0 0 0 .7-7.9A6 6 0 0 0 6.1 8.5 4.8 4.8 0 0 0 7 18Z"/><path d="M12 12v7m-3-3 3 3 3-3"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 3"/></symbol>
+    <symbol id="i-filter" viewBox="0 0 24 24"><path d="M3 5h18l-7 8v6l-4 2v-8Z"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h2"/></symbol>
+    <symbol id="i-paperclip" viewBox="0 0 24 24"><path d="m21 11-9 9a6 6 0 0 1-8-8L14 2a4 4 0 0 1 6 6L10 18a2 2 0 0 1-3-3l9-9"/></symbol>
+    <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="m12 2 2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4Z"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 21V3m0 18h18M7 16l4-5 3 3 6-8"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path d="M4 3h14l3 3v15H3V4a1 1 0 0 1 1-1Zm3 0v7h10V3M7 21v-8h10v8"/></symbol>
+    <symbol id="i-print" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M6 15h12v7H6z"/></symbol>
+    <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 11v6m0-10v1"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14A8 8 0 0 1 10 4a8 8 0 1 0 10 10Z"/></symbol>
+  </svg>
+  <div id="app" class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand-row">
+        <img class="brand-icon" src="/brand-icon.png?v=401" width="72" height="72" alt="YLSY Atlas jet motoru simgesi"/>
+        <div class="brand-title"><b>YLSY Atlas</b></div>
+      </div>
+      <nav class="sidebar-inner" id="sidebar-menu" aria-label="Ana menü">
+        <button class="nav-link is-active" data-nav="dashboard" title="Kontrol Paneli"><svg><use href="#i-grid"/></svg><span>Kontrol Paneli</span></button>
+        <button class="nav-link" data-nav="roadmap" title="Yol Haritası"><svg><use href="#i-route"/></svg><span>Yol Haritası</span><svg class="nav-trailing"><use href="#i-chevron"/></svg></button>
+        <button class="nav-link" data-nav="universities" title="Üniversiteler"><svg><use href="#i-school"/></svg><span>Üniversiteler</span><svg class="nav-trailing"><use href="#i-chevron"/></svg></button>
+        <button class="nav-link" data-nav="advisors" title="Danışmanlar"><svg><use href="#i-users"/></svg><span>Danışmanlar</span></button>
+        <button class="nav-link" data-nav="applications" title="Başvurular"><svg><use href="#i-briefcase"/></svg><span>Başvurular</span><svg class="nav-trailing"><use href="#i-chevron"/></svg></button>
+        <button class="nav-link" data-nav="documents" title="Belge Stüdyosu"><svg><use href="#i-file"/></svg><span>Belge Stüdyosu</span></button>
+        <button class="nav-link" data-nav="ielts" title="IELTS ve Dil Gelişimi"><svg><use href="#i-language"/></svg><span>IELTS &amp; Dil Gelişimi</span><svg class="nav-trailing"><use href="#i-chevron"/></svg></button>
+        <button class="nav-link" data-nav="calendar" title="Takvim ve Hatırlatmalar"><svg><use href="#i-calendar"/></svg><span>Takvim &amp; Hatırlatmalar</span></button>
+        <button class="nav-link" data-nav="guide" title="MEB Rehberi"><svg><use href="#i-book"/></svg><span>MEB Rehberi (ABD)</span></button>
+        <button class="nav-link" data-nav="administration" title="YLSY ve Pasaport"><svg><use href="#i-flag"/></svg><span>YLSY &amp; Pasaport</span></button>
+        <button class="nav-link" data-act="open-rebus" title="REBUS (MEB)"><svg><use href="#i-external"/></svg><span>REBUS (MEB)</span></button>
+        <div class="nav-separator"></div>
+        <button class="nav-link" data-nav="eligibility" title="YLSY Uygunluk Kontrolü"><svg><use href="#i-check"/></svg><span>YLSY Uygunluk Kontrolü</span></button>
+        <button class="nav-link" data-nav="notes" title="Notlar"><svg><use href="#i-file"/></svg><span>Notlar</span></button>
+        <button class="nav-link" data-nav="resources" title="Kaynaklar ve Yayınlar"><svg><use href="#i-book"/></svg><span>Kaynaklar &amp; Yayınlar</span></button>
+        <button class="nav-link" data-nav="files" title="Dosya Kasası"><svg><use href="#i-paperclip"/></svg><span>Dosya Kasası</span></button>
+        <button class="nav-link" data-nav="settings" title="Ayarlar ve Yedekleme"><svg><use href="#i-settings"/></svg><span>Ayarlar &amp; Yedekleme</span></button>
+      </nav>
+      <div class="sidebar-footer"><button class="sidebar-bottom-toggle" id="sidebar-toggle" title="Menüyü daralt" aria-label="Menüyü daralt"><svg><use href="#i-left"/></svg><span>Menüyü Daralt</span></button></div>
+    </aside>
+    <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+    <div class="right-shell">
+      <header class="topbar">
+        <div class="topbar-brand" aria-label="YLSY Atlas"><img src="/app-icon.png?v=401" alt=""/><span>YLSY Atlas</span></div>
+        <div class="breadcrumb" id="breadcrumbs" aria-hidden="true"></div>
+        
+        <div class="topbar-spacer"></div>
+        <button class="search-trigger" data-act="open-search"><svg><use href="#i-search"/></svg><span>Üniversite, görev, belge ara...</span><kbd>Ctrl K</kbd></button>
+        <button id="profile-button" class="icon-button cloud-profile-button" title="Google Drive hesabı" aria-label="Google Drive hesabı"><svg><use href="#i-user"/></svg></button>
+        <div class="header-divider"></div>
+        <button class="icon-button notification-button" data-nav="calendar" title="Takvim"><svg><use href="#i-bell"/></svg><i></i></button>
+        <button class="icon-button header-help" data-nav="guide" title="Yardım ve MEB rehberi" aria-label="Yardım ve MEB rehberi"><svg><use href="#i-info"/></svg></button>
+      </header>
+      <main class="main" id="main" tabindex="-1"><div class="loading-screen"><div class="spinner"></div><p>YLSY Atlas hazırlanıyor...</p></div></main>
+    </div>
+  </div>
+  <footer class="statusbar" aria-label="Uygulama durumu">
+    <div class="statusbit"><i class="status-dot"></i><strong id="cloud-status-label">Yerel çalışma</strong></div>
+    <div class="statusbit"><svg><use href="#i-save"/></svg><strong>Otomatik kayıt etkin</strong></div>
+    <div class="statusbit"><svg><use href="#i-lock"/></svg><strong>Kişisel veriler bu cihazda</strong></div>
+    <div class="status-grow"></div>
+    <div class="statusbit versionbit"><strong>YLSY Atlas · v4.0.0</strong></div>
+  </footer>
+  <div id="toast-container" aria-live="polite"></div>
+  <div id="modal-root"></div>
+  <div id="picker-root"></div>
+  <div id="search-root"></div>
+  <div id="account-root"></div>
+  <input type="file" id="hidden-file" hidden/>
+  <script src="/app.js" defer></script>
+  <script src="/cloud.js" defer></script>
+</body>
+</html>

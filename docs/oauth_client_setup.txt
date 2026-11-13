@@ -1,0 +1,5 @@
+YLSY Atlas 2.3.9 — Google Desktop OAuth Client ID pakete eklendi.
+Google Drive API Google Cloud tarafında etkin olmalıdır. Kullanıcı her zaman kendi Google hesabından izin verir; parolalar uygulamaya girilmez.
+Klasör gezinme için Google Drive tam erişim kapsamı istenir. Bu kapsam dağıtımdan önce Google uygulama doğrulaması gerektirebilir. Test modunda OAuth izin ekranına test kullanıcıları eklenmelidir.
+Token isteği, `resources/google_oauth_client.json` içindeki eşleşen `installed.client_secret` alanı varsa onu da kullanır. Google token sunucusu `client_secret is missing` hatası verirse aynı OAuth istemcisi için Google Cloud Console'dan indirilen Desktop uygulama JSON dosyasını bu dosyanın yerine koyun. İstemci kimliği ile secret aynı OAuth istemcisine ait olmalıdır; secret uygulama içinden üretilemez.
+Google ile gerçek bağlantı ancak internetli Windows ortamında test edilebilir.
