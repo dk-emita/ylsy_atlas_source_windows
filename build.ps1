@@ -7,7 +7,7 @@ Write-Host '[YLSY ATLAS DESKTOP 4.0.0] Windows derlemesi basliyor...' -Foregroun
 $IconPath = (Resolve-Path (Join-Path $PSScriptRoot 'assets\atlas-icon.ico')).Path
 $VersionFile = (Resolve-Path (Join-Path $PSScriptRoot 'assets\version_info.txt')).Path
 $BuildDir = Join-Path $PSScriptRoot 'build'
-$DistDir = if ($Stage) { Join-Path $BuildDir 'staged' } else { Join-Path $PSScriptRoot 'dist' }
+$DistDir = if ($Stage) { Join-Path $BuildDir 'staged' } else { Join-Path $BuildDir 'payload' }
 $SpecDir = Join-Path $BuildDir 'spec'
 $PyInstallerWorkDir = Join-Path $BuildDir 'pyinstaller'
 $ReportDir = Join-Path $BuildDir 'reports'

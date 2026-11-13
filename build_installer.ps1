@@ -9,7 +9,7 @@ if (-not $SkipBuild) {
   & (Join-Path $PSScriptRoot 'build.ps1') -Stage:($null -ne $running)
   if ($LASTEXITCODE -ne 0) { throw 'EXE derlemesi başarısız.' }
 }
-$sourceExe = if ($UseStaged -or ($running -and -not $SkipBuild)) { 'build\staged\ylsy-atlas.exe' } else { 'dist\ylsy-atlas.exe' }
+$sourceExe = if ($UseStaged -or ($running -and -not $SkipBuild)) { 'build\staged\ylsy-atlas.exe' } else { 'build\payload\ylsy-atlas.exe' }
 $appExe = Join-Path $PSScriptRoot $sourceExe
 if (!(Test-Path -LiteralPath $appExe)) { throw 'Uygulama EXE dosyası bulunamadı; önce build.ps1 çalıştırın.' }
 if ($ExeOnly) { Write-Host 'EXE hazır. Kurulum derlemesi atlandı.' -ForegroundColor Yellow; exit 0 }
@@ -30,3 +30,15 @@ if ($LASTEXITCODE -ne 0) { throw 'Kurulum dosyası oluşturulamadı.' }
 $setup = Join-Path $PSScriptRoot 'dist\YLSY-Atlas-v4.0.0-Setup.exe'
 if (!(Test-Path $setup)) { throw 'Inno Setup çıktı dosyası bulunamadı.' }
 Write-Host "Kurulum dosyası: $setup" -ForegroundColor Green
+$legacyRootExe = Join-Path $PSScriptRoot 'YLSY-Atlas-desktop-v4.0.0.exe'
+$legacyDistExe = Join-Path $PSScriptRoot 'dist\ylsy-atlas.exe'
+foreach ($extraExe in @($legacyRootExe, $legacyDistExe)) {
+  if (Test-Path -LiteralPath $extraExe -PathType Leaf) { Remove-Item -LiteralPath $extraExe -Force }
+}
+$generatedBuild = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'build'))
+$projectRoot = [System.IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\') + '\'
+if ($generatedBuild.StartsWith($projectRoot, [System.StringComparison]::OrdinalIgnoreCase) -and
+    (Split-Path -Leaf $generatedBuild) -eq 'build' -and (Test-Path -LiteralPath $generatedBuild -PathType Container)) {
+  Remove-Item -LiteralPath $generatedBuild -Recurse -Force
+}
+Write-Host 'Gereksiz kök EXE ve ara derleme dosyaları temizlendi; dist içinde yalnızca Setup EXE bırakıldı.' -ForegroundColor Cyan

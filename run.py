@@ -19,6 +19,7 @@ import time
 import webbrowser
 from pathlib import Path
 from server import create_server
+from desktop_update import check_for_windows_update
 
 ROOT = Path(__file__).resolve().parent
 ICON = ROOT / 'assets' / 'atlas-icon.ico'
@@ -206,6 +207,9 @@ def main():
             sync_pending(args.data_dir)
         finally:
             _release_instance(instance)
+        return
+    if not args.no_browser and not check_for_windows_update():
+        _release_instance(instance)
         return
     server=create_server(root=args.data_dir,port=args.port,start_cloud_worker=False)
     if server.atlas_cloud.config.get('local_purged'):
